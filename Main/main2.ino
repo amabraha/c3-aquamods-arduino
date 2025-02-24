@@ -72,7 +72,7 @@ int readModule()
     int moduleSelect = (digitalRead(IDPin0)) |
                        (digitalRead(IDPin1) << 1) |
                        digitalRead(IDPin2 << 2);
-    moduleSelect = 0b101; // TEMP
+    moduleSelect = 0b110; // TEMP
     switch (moduleSelect)
     {
     case 0b001:
