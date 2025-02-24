@@ -1,13 +1,13 @@
 #include <Joystick.h>
 
 enum Module {
-    STEER=0,     //steering (potentiometer)
-    AIM=1,       //gun aiming (encoder)
-    SHIELD=2,    //shield aiming (encoder)
-    SPEED=3,     //speed (slide potentiometer)
-    SHOOT=4,     //gun shooting (button)
-    CHARGE=5,    //charging battery (button)
-    NO_MODULE=6  //no module
+    MOD_STEER=0,     //steering (potentiometer)
+    MOD_AIM=1,       //gun aiming (encoder)
+    MOD_SHIELD=2,    //shield aiming (encoder)
+    MOD_SPEED=3,     //speed (slide potentiometer)
+    MOD_SHOOT=4,     //gun shooting (button)
+    MOD_CHARGE=5,    //charging battery (button)
+    MOD_NONE=6  //no module
 };
 
 enum Side {
@@ -31,7 +31,7 @@ PinConfig pin_configs[2] = {
         .IDPin =   {6,5,4},
         .DataPin = {2,A0}
     }
-}
+};
 
 
 // Pin definitions for module selection (D6, D5, D4)
@@ -61,11 +61,11 @@ volatile int encoderCount = 127; // Track encoder throttle
 void setup()
 {
     // Set mode selection pins as inputs
-    for (Side side = 0; side < 2; side ++) 
+    for (Side side = 0; side < 2; side = side+1) 
     {
         for (int idpin = 0; idpin < 3; idpin ++) 
         {
-            pinMode(pin_configs[side].IdPin[idpin], INPUT_PULLUP);
+            pinMode(pin_configs[side].IDPin[idpin], INPUT_PULLUP);
         }
     }
 
@@ -84,18 +84,18 @@ void loop()
     }
 
     // process inputs based on current active module
-    if (currentModule == SPEED)
+    if (currentModule == MOD_SPEED)
     { // adjust speed (slide potentiometer)
         int rawThrottle = analogRead(potPin);
         throttleValue = map(rawThrottle, 0, 1023, 0, 255);
         // Serial.println(throttleValue);
         Joystick.setThrottle(throttleValue);
     }
-    else if (currentModule == STEER || currentModule == AIM || currentModule == SHIELD)
+    else if (currentModule == MOD_STEER || currentModule == MOD_AIM || currentModule == MOD_SHIELD)
     { // encoder modules (steering, aim gun, aim shield)
         Joystick.setThrottle(encoderCount);
     }
-    else if (currentModule == SHOOT || currentModule == CHARGE)
+    else if (currentModule == MOD_SHOOT || currentModule == MOD_CHARGE)
     {                                               // button inputs (fire gun, charge battery)
         bool buttonState = !digitalRead(buttonPin); // active low
         Serial.println(buttonState);
@@ -109,7 +109,7 @@ void loop()
 }
 
 // Dynamically reads the module from D6, D5, D4
-Module readModule(Side side)
+enum Module readModule(enum Side side)
 {
     int moduleSelect = (digitalRead(IDPin0)) |
                        (digitalRead(IDPin1) << 1) |
@@ -118,37 +118,37 @@ Module readModule(Side side)
     switch (moduleSelect)
     {
     case 0b001:
-        return STEER; // Steering (Encoder)
+        return MOD_STEER; // Steering (Encoder)
     case 0b010:
-        return AIM; // Aim (Gun) (Encoder)
+        return MOD_AIM; // Aim (Gun) (Encoder)
     case 0b011:
-        return SHIELD; // Aim (Shield) (Encoder)
+        return MOD_SHIELD; // Aim (Shield) (Encoder)
     case 0b100:
-        return SPEED; // Adjust Speed (Potentiometer)
+        return MOD_SPEED; // Adjust Speed (Potentiometer)
     case 0b101:
-        return SHOOT; // Fire Gun (Button)
+        return MOD_SHOOT; // Fire Gun (Button)
     case 0b110:
-        return CHARGE; // Charge Battery (Button)
+        return MOD_CHARGE; // Charge Battery (Button)
     default:
-        return NO_MODULE; // Default to no module
+        return MOD_NONE; // Default to no module
     }
 }
 
 // reconfigure input pins dynamically when module changes
-void configureModule(Module module, Side side)
+void configureModule(enum Module module, enum Side side)
 {
-    if (module == SPEED)
+    if (module == MOD_SPEED)
     { // Adjust Speed (Potentiometer)
         pinMode(potPin, INPUT);
         detachInterrupt(digitalPinToInterrupt(encoderPinA)); // Ensure encoder interrupt is off
     }
-    else if (module == STEER || module == AIM || module == SHIELD)
+    else if (module == MOD_STEER || module == MOD_AIM || module == MOD_SHIELD)
     { // Encoders (Steering, Aim Gun, Aim Shield)
         pinMode(encoderPinA, INPUT_PULLUP);
         pinMode(encoderPinB, INPUT_PULLUP); // A0 used as digital input
         attachInterrupt(digitalPinToInterrupt(encoderPinA), encoderISR, CHANGE);
     }
-    else if (module == SHOOT || module == CHARGE)
+    else if (module == MOD_SHOOT || module == MOD_CHARGE)
     { // Button Modes (Fire Gun, Charge Battery)
         pinMode(buttonPin, INPUT_PULLUP);
         detachInterrupt(digitalPinToInterrupt(encoderPinA)); // Ensure encoder interrupt is off
