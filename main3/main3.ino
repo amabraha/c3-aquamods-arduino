@@ -1,13 +1,20 @@
 #include <Joystick.h>
 
 enum Module {
-    MOD_STEER=0,     //steering (potentiometer)
+    MOD_STEER=0,     //steering (encoder)
     MOD_AIM=1,       //gun aiming (encoder)
     MOD_SHIELD=2,    //shield aiming (encoder)
     MOD_SPEED=3,     //speed (slide potentiometer)
     MOD_SHOOT=4,     //gun shooting (button)
     MOD_CHARGE=5,    //charging battery (button)
     MOD_NONE=6  //no module
+};
+
+enum Module_Type {
+    TYPE_BUTTON=0,        //module uses a button
+    TYPE_POTENTIOMETER=1, //module uses a potentiometer
+    TYPE_ENCODER=2,       //module uses an encoder
+    TYPE_NONE=3           //no module
 };
 
 enum Side {
@@ -45,13 +52,20 @@ const int buttonPin = 2;    // Button or Encoder A
 const int encoderPinA = 2;  // Encoder Pin A (D2)
 const int encoderPinB = A0; // Encoder Pin B (A0 in digital mode)
 
-// Joystick setup (1 button, 1 axis/throttle)
+// Joystick setup (2 buttons, 4 axis)
+// button0: charge
+// button1: shoot
+// Rx-axis: speed
+// X-axis: steering rate
+// Y-axis: gun aiming rate
+// Z-axis: shield aiming rate
+
 Joystick_ Joystick(JOYSTICK_DEFAULT_REPORT_ID,
                    JOYSTICK_TYPE_GAMEPAD,
-                   1, 0,                        // 1 button, no hats
-                   false, false, false,         // X, Y, Z
-                   false, false, false,         // Rx, Ry, Rz
-                   true,                        // Throttle (or rotation)
+                   2, 0,                        // 2 button, no hats
+                   true, true, true,         // X, Y, Z
+                   true, false, false,         // Rx, Ry, Rz
+                   true,                        // Throttle (or rotation)  //TODO: set throttle to false
                    false, false, false, false); // Rudder, Accelerator, Brake, Steering
 
 int currentModule = -1;          // Stores the last detected module
@@ -72,8 +86,36 @@ void setup()
     Joystick.begin(false);
 }
 
+Module_Type get_type(Module mod) 
+{
+    if (module == MOD_SPEED)
+    {
+        return TYPE_POTENTIOMETER;
+    }
+    else if (module == MOD_STEER || module == MOD_AIM || module == MOD_SHIELD)
+    {
+        return TYPE_ENCODER;
+    }
+    else if (module == MOD_SHOOT || module == MOD_CHARGE)
+    {
+        return TYPE_BUTTON;
+    }
+    else
+    {
+        return TYPE_NONE;
+    }
+}
+
+void joystick_reset()
+{
+    Joystick.setXAxis(-1);
+}
+
 void loop()
 {
+    
+    for (Side side = 0; side < 2; side = side+1)
+    {}
     //TODO: loop through both sides and do the following code for both sides
     int newModule = readModule(LEFT); // Dynamically check for module changes
 
