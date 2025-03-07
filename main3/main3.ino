@@ -1,44 +1,26 @@
 #include <Joystick.h>
-
-enum Module {
-    MOD_STEER=0,     //steering (encoder)
-    MOD_AIM=1,       //gun aiming (encoder)
-    MOD_SHIELD=2,    //shield aiming (encoder)
-    MOD_SPEED=3,     //speed (slide potentiometer)
-    MOD_SHOOT=4,     //gun shooting (button)
-    MOD_CHARGE=5,    //charging battery (button)
-    MOD_NONE=6  //no module
-};
-
-enum Module_Type {
-    TYPE_BUTTON=0,        //module uses a button
-    TYPE_POTENTIOMETER=1, //module uses a potentiometer
-    TYPE_ENCODER=2,       //module uses an encoder
-    TYPE_NONE=3           //no module
-};
-
-enum Side {
-    LEFT=0,
-    RIGHT=1
-};
-
-typedef struct {
-    const int IDPin[3];    //IDPin[0] will be the LSB, IDPin[1] will be the middle bit, IDPin[2] will be the MSB
-    const int DataPin[2];
-} PinConfig;
+#include "main3.h"
 
 
+
+
+
+// Pin definitions
 PinConfig pin_configs[2] = {
     { //left side pin configuration
-        .IDPin =   {6,5,4},
-        .DataPin = {2,A0}
+        .IDPin =   {6,5,4},   //IDPin0, IDPin1, IDPin2
+        .DataPin = {0,1,A0}   //DataPin0, DataPin1, DataPin2
     },
     { //right side pin configuration
     //TODO: change these to be whatever they are supposed to be
         .IDPin =   {6,5,4},
-        .DataPin = {2,A0}
+        .DataPin = {2,3,A0}
     }
 };
+
+//encoder global state variables
+//initialized in setup()
+EncoderState encoder_state[3];
 
 
 // Pin definitions for module selection (D6, D5, D4)
@@ -83,25 +65,30 @@ void setup()
         }
     }
 
+    //initialize encoder_state module fields to be their corresponding module
+    for (Module mod = 0; mod < 3; mod = mod+1)
+    {
+        encoder_state[mod].module = mod;
+    }
+
     Joystick.begin(false);
 }
 
 Module_Type get_type(Module mod) 
 {
-    if (module == MOD_SPEED)
+
+    switch (mod)
     {
+    case MOD_SPEED:
         return TYPE_POTENTIOMETER;
-    }
-    else if (module == MOD_STEER || module == MOD_AIM || module == MOD_SHIELD)
-    {
+    case MOD_STEER:
+    case MOD_AIM:
+    case MOD_SHIELD:
         return TYPE_ENCODER;
-    }
-    else if (module == MOD_SHOOT || module == MOD_CHARGE)
-    {
+    case MOD_SHOOT:
+    case MOD_CHARGE:
         return TYPE_BUTTON;
-    }
-    else
-    {
+    case MOD_NONE:
         return TYPE_NONE;
     }
 }
@@ -109,13 +96,22 @@ Module_Type get_type(Module mod)
 void joystick_reset()
 {
     Joystick.setXAxis(-1);
+    Joystick.setYAxis(-1);
+    Joystick.setZAxis(-1);
+    Joystick.setRxAxis(-1);
+    Joystick.releaseButton(0);
+    Joystick.releaseButton(1);
 }
 
 void loop()
 {
+    joystick_reset();
+
     
     for (Side side = 0; side < 2; side = side+1)
-    {}
+    {
+        int newModule = readModule(side);
+    }
     //TODO: loop through both sides and do the following code for both sides
     int newModule = readModule(LEFT); // Dynamically check for module changes
 
@@ -153,9 +149,9 @@ void loop()
 // Dynamically reads the module from D6, D5, D4
 enum Module readModule(enum Side side)
 {
-    int moduleSelect = (digitalRead(IDPin0)) |
-                       (digitalRead(IDPin1) << 1) |
-                       digitalRead(IDPin2 << 2);
+    int moduleSelect = (digitalRead(pin_configs[side].IDPin[0])) |
+                       (digitalRead(pin_configs[side].IDPin[1]) << 1) |
+                       (digitalRead(pin_configs[side].IDPin[2]) << 2);
     moduleSelect = 0b110; // TEMP
     switch (moduleSelect)
     {
@@ -179,36 +175,109 @@ enum Module readModule(enum Side side)
 // reconfigure input pins dynamically when module changes
 void configureModule(enum Module module, enum Side side)
 {
-    if (module == MOD_SPEED)
-    { // Adjust Speed (Potentiometer)
-        pinMode(potPin, INPUT);
-        detachInterrupt(digitalPinToInterrupt(encoderPinA)); // Ensure encoder interrupt is off
-    }
-    else if (module == MOD_STEER || module == MOD_AIM || module == MOD_SHIELD)
-    { // Encoders (Steering, Aim Gun, Aim Shield)
-        pinMode(encoderPinA, INPUT_PULLUP);
-        pinMode(encoderPinB, INPUT_PULLUP); // A0 used as digital input
-        attachInterrupt(digitalPinToInterrupt(encoderPinA), encoderISR, CHANGE);
-    }
-    else if (module == MOD_SHOOT || module == MOD_CHARGE)
-    { // Button Modes (Fire Gun, Charge Battery)
-        pinMode(buttonPin, INPUT_PULLUP);
-        detachInterrupt(digitalPinToInterrupt(encoderPinA)); // Ensure encoder interrupt is off
+    
+    switch (get_type(module))
+    {
+    case TYPE_POTENTIOMETER: // Adjust Speed (Potentiometer)
+        pinMode(pin_configs[side].DataPin[2], INPUT);
+        detachInterrupt(digitalPinToInterrupt(pin_configs[side].DataPin[0])); // Ensure encoder interrupt is off
+        detachInterrupt(digitalPinToInterrupt(pin_configs[side].DataPin[1])); // Ensure encoder interrupt is off
+        break;
+    case TYPE_ENCODER:      // Encoders (Steering, Aim Gun, Aim Shield)
+        pinMode(pin_configs[side].DataPin[0], INPUT_PULLUP);
+        pinMode(pin_configs[side].DataPin[1], INPUT_PULLUP);
+
+        //reconfigure encoder state for corresponding module
+        encoder_state[module] = 
+        {
+            .module = module,
+            .side = side,
+            .pinAState = digitalRead(pin_configs[side].DataPin[0]),
+            .pinBState = digitalRead(pin_configs[side].DataPin[1]),
+            .encoderCountPrev = 0,
+            .timePrev = micros(),
+            .encoderCountCurr = 0,
+            .timeCurr = micros()
+        };
+
+        //attach encoder ISR corresponding to the appropriate side
+        switch(side)
+        {
+        case LEFT:
+            attachInterrupt(digitalPinToInterrupt(pin_configs[side].DataPin[0]), encoderLeftISR, CHANGE);
+            attachInterrupt(digitalPinToInterrupt(pin_configs[side].DataPin[1]), encoderLeftISR, CHANGE);
+            break;
+        case RIGHT:
+            attachInterrupt(digitalPinToInterrupt(pin_configs[side].DataPin[0]), encoderRightISR, CHANGE);
+            attachInterrupt(digitalPinToInterrupt(pin_configs[side].DataPin[1]), encoderRightISR, CHANGE);
+            break;
+        }
+        break;
+    case TYPE_BUTTON:       // Button Modes (Fire Gun, Charge Battery)
+        pinMode(pin_configs[side].DataPin[0], INPUT_PULLUP);
+        detachInterrupt(digitalPinToInterrupt(pin_configs[side].DataPin[0])); // Ensure encoder interrupt is off
+        detachInterrupt(digitalPinToInterrupt(pin_configs[side].DataPin[1])); // Ensure encoder interrupt is off
+        break;
+    case TYPE_NONE:
+        break;
     }
 }
 
-// interrupt service routine for encoder
-void encoderISR()
+//general encoder ISR
+void encoderISR(Side side)
 {
-    bool stateA = digitalRead(encoderPinA);
-    bool stateB = digitalRead(encoderPinB);
+    unsigned long new_time = micros();
+    Module encoder_module = readModule(side);
+    
+    //TODO: idk if we need this, but sanity check
+    if(get_type(encoder_module) != TYPE_ENCODER)
+    {
+        exit(0);
+        return;
+    }
 
-    if (stateA == stateB)
+    bool stateA = digitalRead(pin_configs[side].DataPin[0]);
+    bool stateB = digitalRead(pin_configs[side].DataPin[1]);
+
+    //in CW order, the order we see states (B,A) is
+    //0: (1,1)
+    //1: (1,0)
+    //2: (0,0)
+    //3: (0,1)
+
+    //quadrature_state_order represents a mapping from the greycode for states B/A to the order they appear in the rotation of the encoder
+    //quadrature_state_order[B*2 + A] is the order of state (B,A) as above
+    int quadrature_state_order[4] = {2, 3, 1, 0};
+
+    int curr_quadrature_state = quadrature_state_order[stateB*2+stateA];
+    int prev_quadrature_state = quadrature_state_order[encoder_state[encoder_module].pinBState*2+encoder_state[encoder_module].pinAState];
+
+    switch ((4+curr_quadrature_state-prev_quadrature_state) % 4)
     {
-        encoderCount = min(255, encoderCount + 1); // clockwise
+    case 1:
+        encoder_state[encoder_module].encoderCountCurr += 1; // clockwise
+        break;
+    case 3:
+        encoder_state[encoder_module].encoderCountCurr -= 1; // counterclockwise
+        break;
+    default:
+        //we've missed a state oops
+        exit(0);
+        return;
     }
-    else
-    {
-        encoderCount = max(0, encoderCount - 1); // counterclockwise
-    }
+
+    //TODO: need to reconfigure encoder_state struct with newfound information.
+    
+}
+
+
+//ISRs for encoder pin change interrupts
+void encoderLeftISR()
+{
+    encoderISR(RIGHT);
+}
+
+void encoderRightISR()
+{
+    encoderISR(LEFT);
 }
