@@ -13,8 +13,8 @@ PinConfig pin_configs[2] = {
     },
     { //right side pin configuration
     //TODO: change these to be whatever they are supposed to be
-        .IDPin =   {6,5,4},
-        .DataPin = {2,3,A0}
+        .IDPin =   {9,8,7},
+        .DataPin = {2,3,A1}
     }
 };
 
@@ -108,36 +108,35 @@ void loop()
     joystick_reset();
 
     
-    for (Side side = 0; side < 2; side = side+1)
+    for (Side side = 0; side < 1; side = side+1)
     {
-        int newModule = readModule(side);
-    }
-    //TODO: loop through both sides and do the following code for both sides
-    int newModule = readModule(LEFT); // Dynamically check for module changes
-
-    if (newModule != currentModule)
-    { // If module changes, reconfigure
-        currentModule = newModule;
-        configureModule(currentModule, LEFT);
-    }
-
-    // process inputs based on current active module
-    if (currentModule == MOD_SPEED)
-    { // adjust speed (slide potentiometer)
-        int rawThrottle = analogRead(potPin);
-        throttleValue = map(rawThrottle, 0, 1023, 0, 255);
-        // Serial.println(throttleValue);
-        Joystick.setThrottle(throttleValue);
-    }
-    else if (currentModule == MOD_STEER || currentModule == MOD_AIM || currentModule == MOD_SHIELD)
-    { // encoder modules (steering, aim gun, aim shield)
-        Joystick.setThrottle(encoderCount);
-    }
-    else if (currentModule == MOD_SHOOT || currentModule == MOD_CHARGE)
-    {                                               // button inputs (fire gun, charge battery)
-        bool buttonState = !digitalRead(buttonPin); // active low
-        Serial.println(buttonState);
-        Joystick.setButton(0, buttonState);
+        //TODO: loop through both sides and do the following code for both sides
+        int currentModule = readModule(side); // Dynamically check for module changes
+    
+        // process inputs based on current active module
+        switch (get_type(currentModule))
+        {
+        case TYPE_POTENTIOMETER: // adjust speed (slide potentiometer)
+            int rawThrottle = analogRead(pin_configs[side].DataPin[2]);
+            throttleValue = map(rawThrottle, 0, 1023, 0, 255);
+            // Serial.println(throttleValue);
+            Joystick.setRxAxis(throttleValue);
+            break;
+        case TYPE_ENCODER: // encoder modules (steering, aim gun, aim shield)
+            switch (currentModule)
+            {
+            case MOD_STEER:
+                
+                Joystick.setXAxis(encoder_state[currentModule])
+            }
+            Joystick.setThrottle(encoderCount);
+            break;
+        case TYPE_BUTTON: // button inputs (fire gun, charge battery)
+            bool buttonState = !digitalRead(buttonPin); // active low
+            Serial.println(buttonState);
+            Joystick.setButton(0, buttonState);
+            break;   
+        }
     }
 
     //TODO: this is for manually sending state. Maybe add some checks so that we aren't redundantly sending state.
@@ -146,13 +145,15 @@ void loop()
     delay(10); // Prevent excessive polling
 }
 
+
+
 // Dynamically reads the module from D6, D5, D4
 enum Module readModule(enum Side side)
 {
     int moduleSelect = (digitalRead(pin_configs[side].IDPin[0])) |
                        (digitalRead(pin_configs[side].IDPin[1]) << 1) |
                        (digitalRead(pin_configs[side].IDPin[2]) << 2);
-    moduleSelect = 0b110; // TEMP
+    Serial.println(moduleSelect);
     switch (moduleSelect)
     {
     case 0b001:
@@ -232,13 +233,14 @@ void encoderISR(Side side)
     //TODO: idk if we need this, but sanity check
     if(get_type(encoder_module) != TYPE_ENCODER)
     {
-        exit(0);
+        // exit(0);
         return;
     }
 
     bool stateA = digitalRead(pin_configs[side].DataPin[0]);
     bool stateB = digitalRead(pin_configs[side].DataPin[1]);
 
+    //https://cdn-shop.adafruit.com/datasheets/pec11.pdf
     //in CW order, the order we see states (B,A) is
     //0: (1,1)
     //1: (1,0)
