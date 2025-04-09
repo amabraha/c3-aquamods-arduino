@@ -23,7 +23,7 @@ Joystick_ Joystick(JOYSTICK_DEFAULT_REPORT_ID,
                   false, false, false, false); // Rudder, Accelerator, Brake, Steering
 
 // global variables to hold state
-volatile int encoderPosition = 0;       // the count up/down
+volatile int encoderPosition = 0;         // the count up/down
 volatile unsigned long lastClickTime = 0; // track time of last full "click"
 volatile unsigned long clickInterval = 0; // time between clicks (for speed)
 
@@ -60,6 +60,7 @@ void loop() {
   //TODO: send automatic sending to false and then manually send state
   //TODO: try messing with resetting if button is held when module removed or potentiometer stuff
   //TODO: Encoder library
+  //TODO: send negative number for unplugged potentiometer
 
   for (Side side = 0; side < 2; side = side + 1) {
     Module modInserted = readModule(side);
@@ -120,64 +121,6 @@ void loop() {
       Serial.println("No module attached, no data!");
     }
   }
-  // Side side = 0;
-  // Module leftModule = readModule(side);
-  // Module_Type leftModuleType = get_type(leftModule);
-
-  // if (leftModuleType == TYPE_BUTTON) {
-  //   int buttonStatus = !digitalRead(pin_configs[side].DataPin[0]);
-  //   Serial.print("Fire Gun Button status: ");
-  //   Serial.println(buttonStatus);
-  //   Joystick.setButton(0, buttonStatus);
-  // } else if (leftModuleType == TYPE_POTENTIOMETER){
-  //   int potStatus = analogRead(pin_configs[side].DataPin[2]);
-  //   int mappedPotStatus = map(potStatus, 0, 1023, 0, 255); 
-  //   Serial.print("Mapped Speed Potentiometer status: ");
-  //   Serial.println(mappedPotStatus);
-  //   Joystick.setYAxis(10*mappedPotStatus);
-  // } else if (leftModuleType == TYPE_ENCODER) {
-  //   int statusA = digitalRead(pin_configs[side].DataPin[0]);
-  //   int statusB = digitalRead(pin_configs[side].DataPin[1]);
-
-  //   byte newState = statusA << 1 | statusB;
-
-  //   if (newState != lastState) {
-  //     byte combined = (lastState << 2) | newState;
-  //     if (newState == 0b00) {
-  //       byte oldA = (lastState >> 1) & 1;
-  //       byte oldB = lastState & 1;
-  //       byte currentA = (newState >> 1) & 1;
-  //       byte currentB = newState & 1;
-  //       if (lastState == 0b10) {
-  //         // Clockwise
-  //         encoderPosition++;
-  //         unsigned long now = micros();
-  //         clickInterval = now - lastClickTime;
-  //         lastClickTime = now;
-  //         Serial.print("Clockwise, Position = ");
-  //         Serial.print(encoderPosition);
-  //         Serial.print(", time interval (us) = ");
-  //         Serial.println(clickInterval);
-  //       }
-  //       else if (lastState == 0b01) {
-  //         // Counterclockwise
-  //         encoderPosition--;
-  //         unsigned long now = micros();
-  //         clickInterval = now - lastClickTime;
-  //         lastClickTime = now;
-  //         Serial.print("Counterclockwise, Position = ");
-  //         Serial.print(encoderPosition);
-  //         Serial.print(", time interval (us) = ");
-  //         Serial.println(clickInterval);
-  //       }
-  //     }
-  //   }
-  //   lastState = newState;
-  //   Joystick.setXAxis(encoderPosition + 220); // 40 is -1, 440 is 1?
-
-  // } else {
-  //   Serial.println("No module attached, no data!");
-  // }
 }
 
 /**************** HELPER FUNCTIONS ****************/
