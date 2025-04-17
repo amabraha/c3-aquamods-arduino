@@ -24,14 +24,12 @@ Joystick_ Joystick(JOYSTICK_DEFAULT_REPORT_ID,
                   false, false, false, false); // Rudder, Accelerator, Brake, Steering
 
 // 0, 1, 2: aim gun, aim shield, steer
-volatile int encoderPosition[3] = {0, 0, 0}; // the count up/down
-unsigned long lastClickTime[3] = {0, 0, 0}; // track time of last full "click"
-unsigned long clickInterval[3] = {0, 0, 0}; // time between clicks (for speed)
-
-int steerDirection;
+// volatile int encoderPosition[3] = {0, 0, 0}; // the count up/down
+// unsigned long lastClickTime[3] = {0, 0, 0}; // track time of last full "click"
+// unsigned long clickInterval[3] = {0, 0, 0}; // time between clicks (for speed)
 
 // storing last known 2-bit state 
-byte lastState[3] = {0, 0, 0};
+// byte lastState[3] = {0, 0, 0};
 
 // ENCODER
 Encoder leftEnc(2, 3);
@@ -67,9 +65,9 @@ void setup() {
   pinMode(pin_configs[1].DataPin[1], INPUT_PULLUP);
 
   // initialize the lastState based on the current reading (for encoder)
-  for (int i = 0; i < 3; i++) {
-    lastState[i] = (digitalRead(pin_configs[0].DataPin[0])) | digitalRead(pin_configs[0].DataPin[1]);
-  }
+  // for (int i = 0; i < 3; i++) {
+  //   lastState[i] = (digitalRead(pin_configs[0].DataPin[0])) | digitalRead(pin_configs[0].DataPin[1]);
+  // }
   
   Joystick.begin();
 }
@@ -95,12 +93,10 @@ void loop() {
         Serial.print("STEER POSITION: "); Serial.println(steerPosition);
       } break;
       case MOD_AIM: {
-        // stuff
         read_encoder(side, modInserted);
         Serial.print("AIM POSITION: "); Serial.println(aimPosition);
       } break;
       case MOD_SHIELD: {
-        // stuff
         read_encoder(side, modInserted);
         Serial.print("SHIELD POSITION: "); Serial.println(shieldPosition);
       } break;
@@ -304,10 +300,14 @@ void display_inserted_module(enum Side side, enum Module module) {
   if (side == RIGHT) Serial.print("\n");
 }
 
+// Given a side and a module (one of the 3 encoder modules),
+// read the encoder and update the stored position of that
+// encoder module
 void read_encoder(enum Side side, enum Module module) {
   if (side == LEFT) {
     newLeftEncPosition = leftEnc.read();
-    if (newLeftEncPosition > oldLeftEncPosition) {
+    if (newLeftEncPosition < oldLeftEncPosition) { 
+      // CLOCKWISE
       switch (module) {
         case MOD_STEER: {
           steerPosition++;
@@ -319,7 +319,8 @@ void read_encoder(enum Side side, enum Module module) {
           shieldPosition++;
         } break;
       }
-    } else if (newLeftEncPosition < oldLeftEncPosition) {
+    } else if (newLeftEncPosition > oldLeftEncPosition) { 
+      // COUNTER-CLOCKWISE
       switch (module) {
         case MOD_STEER: {
           steerPosition--;
@@ -335,7 +336,8 @@ void read_encoder(enum Side side, enum Module module) {
     oldLeftEncPosition = newLeftEncPosition;
   } else {
     newRightEncPosition = rightEnc.read();
-    if (newRightEncPosition > oldRightEncPosition) {
+    if (newRightEncPosition < oldRightEncPosition) { 
+      // CLOCKWISE
       switch (module) {
         case MOD_STEER: {
           steerPosition++;
@@ -347,7 +349,8 @@ void read_encoder(enum Side side, enum Module module) {
           shieldPosition++;
         } break;
       }
-    } else if (newRightEncPosition < oldRightEncPosition) {
+    } else if (newRightEncPosition > oldRightEncPosition) { 
+      // COUNTER-CLOCKWISE
       switch (module) {
         case MOD_STEER: {
           steerPosition--;
