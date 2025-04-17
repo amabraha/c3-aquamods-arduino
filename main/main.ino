@@ -3,6 +3,9 @@
 #include "main.h"
 
 #define SPEED_CONSTANT 5000000
+#define JOYSTICK_COUNT 2
+#define JOYSTICK_REPORT_ID_A 3
+#define JOYSTICK_REPORT_ID_B 4
 
 // Pin definitions
 PinConfig pin_configs[2] = {
@@ -17,11 +20,11 @@ PinConfig pin_configs[2] = {
 };
 
 // Joystick setup
-Joystick_ Joystick(JOYSTICK_DEFAULT_REPORT_ID,
-                  JOYSTICK_TYPE_JOYSTICK,
+Joystick_ Joystick(JOYSTICK_REPORT_ID_A,
+                  JOYSTICK_TYPE_GAMEPAD,
                   6, 0,                        // 6 button, no hats
                   true, true, false,           // X, Y, Z               UP TO 2 ENCODERS AT ONCE
-                  false, false, false,         // Rx, Ry, Rz
+                  true, true, false,         // Rx, Ry, Rz
                   false,                       // Throttle (or rotation)
                   false, false, false, false); // Rudder, Accelerator, Brake, Steering
 
@@ -92,7 +95,8 @@ void loop() {
       case MOD_STEER: {
         read_encoder(side, modInserted);
         // Serial.print("STEER POSITION: "); Serial.println(steerPosition);
-        if (steerSpeed > 0) {Serial.print("STEER SPEED: "); Serial.println(steerSpeed);}
+        // if (steerSpeed > 0) {Serial.print("STEER SPEED: "); Serial.println(steerSpeed);}
+        
         // Range we should send is 0 - 1023
         // 0 is full left, 1023 is full right
         Joystick.setXAxis(512 + steerSpeed * steerDirection);
@@ -100,12 +104,14 @@ void loop() {
       case MOD_AIM: {
         read_encoder(side, modInserted);
         // Serial.print("AIM POSITION: "); Serial.println(aimPosition);
-        if (aimSpeed > 0) {Serial.print("AIM SPEED: "); Serial.println(aimSpeed);}
+        // if (aimSpeed > 0) {Serial.print("AIM SPEED: "); Serial.println(aimSpeed);}
+        Joystick.setRxAxis(512 + aimSpeed * aimDirection);
       } break;
       case MOD_SHIELD: {
         read_encoder(side, modInserted);
         // Serial.print("SHIELD POSITION: "); Serial.println(shieldPosition);
-        if (shieldSpeed > 0) {Serial.print("SHIELD SPEED: "); Serial.println(shieldSpeed);}
+        // if (shieldSpeed > 0) {Serial.print("SHIELD SPEED: "); Serial.println(shieldSpeed);}
+        Joystick.setRyAxis(512 + shieldSpeed * shieldDirection);
       } break;
       case MOD_SPEED: {
         int potStatus = analogRead(pin_configs[side].DataPin[2]);
@@ -116,12 +122,12 @@ void loop() {
       } break;
       case MOD_SHOOT: {
         int shootButtonStatus = !digitalRead(pin_configs[side].DataPin[0]);
-        Serial.print("shoot status: "); Serial.println(shootButtonStatus);
+        // Serial.print("shoot status: "); Serial.println(shootButtonStatus);
         Joystick.setButton(0, shootButtonStatus);
       } break;
       case MOD_CHARGE: {
         int chargeButtonStatus = !digitalRead(pin_configs[side].DataPin[0]);
-        Serial.print("charge status: "); Serial.println(chargeButtonStatus);
+        // Serial.print("charge status: "); Serial.println(chargeButtonStatus);
         Joystick.setButton(1, chargeButtonStatus);
       } break;
       case MOD_NONE: {
