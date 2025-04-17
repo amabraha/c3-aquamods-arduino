@@ -2,7 +2,7 @@
 #include <Encoder.h>
 #include "main.h"
 
-#define SPEED_CONSTANT 1000000
+#define SPEED_CONSTANT 5000000
 
 // Pin definitions
 PinConfig pin_configs[2] = {
@@ -37,6 +37,10 @@ long newRightEncPosition = 0;
 long steerPosition = 0;
 long aimPosition = 0;
 long shieldPosition = 0;
+
+long steerDirection = 0;
+long aimDirection = 0;
+long shieldDirection = 0;
 
 long prevSteerTime = 0;
 long prevAimTime = 0;
@@ -89,6 +93,9 @@ void loop() {
         read_encoder(side, modInserted);
         // Serial.print("STEER POSITION: "); Serial.println(steerPosition);
         if (steerSpeed > 0) {Serial.print("STEER SPEED: "); Serial.println(steerSpeed);}
+        // Range we should send is 0 - 1023
+        // 0 is full left, 1023 is full right
+        Joystick.setXAxis(512 + steerSpeed * steerDirection);
       } break;
       case MOD_AIM: {
         read_encoder(side, modInserted);
@@ -102,17 +109,20 @@ void loop() {
       } break;
       case MOD_SPEED: {
         int potStatus = analogRead(pin_configs[side].DataPin[2]);
-        int mappedPotStatus = map(potStatus, 0, 1023, 0, 255); 
-        Serial.print("Mapped Speed Potentiometer status: ");
-        Serial.println(mappedPotStatus);
+        int mappedPotStatus = map(potStatus, 0, 1023, 511, 0); 
+        // Serial.print("Mapped Speed Potentiometer status: ");
+        // Serial.println(mappedPotStatus);
+        Joystick.setYAxis(mappedPotStatus);
       } break;
       case MOD_SHOOT: {
         int shootButtonStatus = !digitalRead(pin_configs[side].DataPin[0]);
         Serial.print("shoot status: "); Serial.println(shootButtonStatus);
+        Joystick.setButton(0, shootButtonStatus);
       } break;
       case MOD_CHARGE: {
         int chargeButtonStatus = !digitalRead(pin_configs[side].DataPin[0]);
         Serial.print("charge status: "); Serial.println(chargeButtonStatus);
+        Joystick.setButton(1, chargeButtonStatus);
       } break;
       case MOD_NONE: {
         // stuff
@@ -227,27 +237,34 @@ void read_encoder(enum Side side, enum Module module) {
       switch (module) {
         case MOD_STEER: {
           steerSpeed = 0;
+          steerDirection = 0;
         } break;
         case MOD_AIM: {
           aimSpeed = 0;
+          aimDirection = 0;
         } break;
         case MOD_SHIELD: {
           shieldSpeed = 0;
+          shieldDirection = 0;
         } break;
       }
     }
 
+    // absolute position calculation
     if (newLeftEncPosition < oldLeftEncPosition) { 
       // CLOCKWISE
       switch (module) {
         case MOD_STEER: {
           steerPosition++;
+          steerDirection = 1;
         } break;
         case MOD_AIM: {
           aimPosition++;
+          aimDirection = 1;
         } break;
         case MOD_SHIELD: {
           shieldPosition++;
+          shieldDirection = 1;
         } break;
       }
     } else if (newLeftEncPosition > oldLeftEncPosition) { 
@@ -255,12 +272,15 @@ void read_encoder(enum Side side, enum Module module) {
       switch (module) {
         case MOD_STEER: {
           steerPosition--;
+          steerDirection = -1;
         } break;
         case MOD_AIM: {
           aimPosition--;
+          aimDirection = -1;
         } break;
         case MOD_SHIELD: {
           shieldPosition--;
+          shieldDirection = -1;
         } break;
       }
     }
@@ -292,27 +312,34 @@ void read_encoder(enum Side side, enum Module module) {
       switch (module) {
         case MOD_STEER: {
           steerSpeed = 0;
+          steerDirection = 0;
         } break;
         case MOD_AIM: {
           aimSpeed = 0;
+          aimDirection = 0;
         } break;
         case MOD_SHIELD: {
           shieldSpeed = 0;
+          shieldDirection = 0;
         } break;
       }
     }
 
+    // absolute position calculation
     if (newRightEncPosition < oldRightEncPosition) { 
       // CLOCKWISE
       switch (module) {
         case MOD_STEER: {
           steerPosition++;
+          steerDirection = 1;
         } break;
         case MOD_AIM: {
           aimPosition++;
+          aimDirection = 1;
         } break;
         case MOD_SHIELD: {
           shieldPosition++;
+          shieldDirection = 1;
         } break;
       }
     } else if (newRightEncPosition > oldRightEncPosition) { 
@@ -320,12 +347,15 @@ void read_encoder(enum Side side, enum Module module) {
       switch (module) {
         case MOD_STEER: {
           steerPosition--;
+          steerDirection = -1;
         } break;
         case MOD_AIM: {
           aimPosition--;
+          aimDirection = -1;
         } break;
         case MOD_SHIELD: {
           shieldPosition--;
+          shieldDirection = -1;
         } break;
       }
     }
