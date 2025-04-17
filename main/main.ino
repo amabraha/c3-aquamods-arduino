@@ -2,6 +2,8 @@
 #include <Encoder.h>
 #include "main.h"
 
+#define SPEED_CONSTANT 1000000
+
 // Pin definitions
 PinConfig pin_configs[2] = {
   { // left side pin configuration
@@ -10,7 +12,7 @@ PinConfig pin_configs[2] = {
   },
   { // right side pin configuration
   .IDPin = {9, 10, 11},   // IDPin0, IDPin1, IDPin2
-  .DataPin = {8, 7, A1}   // DataPin2, DataPin1, DataPin0
+  .DataPin = {0, 1, A1}   // DataPin2, DataPin1, DataPin0
   }
 };
 
@@ -23,17 +25,9 @@ Joystick_ Joystick(JOYSTICK_DEFAULT_REPORT_ID,
                   false,                       // Throttle (or rotation)
                   false, false, false, false); // Rudder, Accelerator, Brake, Steering
 
-// 0, 1, 2: aim gun, aim shield, steer
-// volatile int encoderPosition[3] = {0, 0, 0}; // the count up/down
-// unsigned long lastClickTime[3] = {0, 0, 0}; // track time of last full "click"
-// unsigned long clickInterval[3] = {0, 0, 0}; // time between clicks (for speed)
-
-// storing last known 2-bit state 
-// byte lastState[3] = {0, 0, 0};
-
 // ENCODER
-Encoder leftEnc(2, 3);
-Encoder rightEnc(8, 7);
+Encoder leftEnc(pin_configs[LEFT].DataPin[0], pin_configs[LEFT].DataPin[1]);
+Encoder rightEnc(pin_configs[RIGHT].DataPin[0], pin_configs[RIGHT].DataPin[1]);
 
 long oldLeftEncPosition = 0;
 long oldRightEncPosition = 0;
@@ -43,6 +37,18 @@ long newRightEncPosition = 0;
 long steerPosition = 0;
 long aimPosition = 0;
 long shieldPosition = 0;
+
+long prevSteerTime = 0;
+long prevAimTime = 0;
+long prevShieldTime = 0;
+
+long steerInterval = 0;
+long aimInterval = 0;
+long shieldInterval = 0;
+
+long steerSpeed = 0;
+long aimSpeed = 0;
+long shieldSpeed = 0;
 
 void setup() {
   // Set mode selection pins as inputs
@@ -63,11 +69,6 @@ void setup() {
   pinMode(pin_configs[0].DataPin[1], INPUT_PULLUP);
   pinMode(pin_configs[1].DataPin[0], INPUT_PULLUP);
   pinMode(pin_configs[1].DataPin[1], INPUT_PULLUP);
-
-  // initialize the lastState based on the current reading (for encoder)
-  // for (int i = 0; i < 3; i++) {
-  //   lastState[i] = (digitalRead(pin_configs[0].DataPin[0])) | digitalRead(pin_configs[0].DataPin[1]);
-  // }
   
   Joystick.begin();
 }
@@ -85,20 +86,19 @@ void loop() {
 
     switch(modInserted) {
       case MOD_STEER: {
-        // If steer module inserted, check which side it's in and then
-        // monitor encoder transitions to increment/decrement steer encoder
-        // position value
-        //TODO: find time between transitions for speed
         read_encoder(side, modInserted);
-        Serial.print("STEER POSITION: "); Serial.println(steerPosition);
+        // Serial.print("STEER POSITION: "); Serial.println(steerPosition);
+        if (steerSpeed > 0) {Serial.print("STEER SPEED: "); Serial.println(steerSpeed);}
       } break;
       case MOD_AIM: {
         read_encoder(side, modInserted);
-        Serial.print("AIM POSITION: "); Serial.println(aimPosition);
+        // Serial.print("AIM POSITION: "); Serial.println(aimPosition);
+        if (aimSpeed > 0) {Serial.print("AIM SPEED: "); Serial.println(aimSpeed);}
       } break;
       case MOD_SHIELD: {
         read_encoder(side, modInserted);
-        Serial.print("SHIELD POSITION: "); Serial.println(shieldPosition);
+        // Serial.print("SHIELD POSITION: "); Serial.println(shieldPosition);
+        if (shieldSpeed > 0) {Serial.print("SHIELD SPEED: "); Serial.println(shieldSpeed);}
       } break;
       case MOD_SPEED: {
         int potStatus = analogRead(pin_configs[side].DataPin[2]);
@@ -119,111 +119,6 @@ void loop() {
       } break;
     }
   }
-
-    /*
-    if (modType == TYPE_BUTTON) {
-      if (modInserted == MOD_SHOOT) {
-        int buttonStatus = !digitalRead(pin_configs[side].DataPin[0]);
-        Serial.print("Fire Gun Button status: ");
-        Serial.println(buttonStatus);
-        Joystick.setButton(0, buttonStatus);
-      } else if (modInserted == MOD_CHARGE) {
-        int buttonStatus = !digitalRead(pin_configs[side].DataPin[0]);
-        Serial.print("Charge Battery Button status: ");
-        Serial.println(buttonStatus);
-        Joystick.setButton(1, buttonStatus);
-      }
-    } else if (modType == TYPE_POTENTIOMETER){
-      int potStatus = analogRead(pin_configs[side].DataPin[2]);
-      int mappedPotStatus = map(potStatus, 0, 1023, 0, 255); 
-      Serial.print("Mapped Speed Potentiometer status: ");
-      Serial.println(mappedPotStatus);
-      Joystick.setYAxis(255 - mappedPotStatus);
-    } else if (modType == TYPE_ENCODER) {
-      int emt; // encoder_module_type
-      if (modInserted == MOD_AIM) {
-        emt = 0;
-      } else if (modInserted == MOD_SHIELD) {
-        emt = 1;
-      } else if (modInserted == MOD_STEER) {
-        emt = 2;
-      }
-
-      int statusA = digitalRead(pin_configs[side].DataPin[0]);
-      int statusB = digitalRead(pin_configs[side].DataPin[1]);
-
-      byte newState = statusA << 1 | statusB;
-
-      if (newState != lastState[emt]) {
-        byte combined = (lastState[emt] << 2) | newState;
-        if (newState == 0b00) {
-          byte oldA = (lastState[emt] >> 1) & 1;
-          byte oldB = lastState[emt] & 1;
-          byte currentA = (newState >> 1) & 1;
-          byte currentB = newState & 1;
-          if (lastState[emt] == 0b10) {
-            // Clockwise
-            steerDirection = -1;
-            if (emt == 0)  { // aim gun
-              Serial.println("gun clockwise");
-              Joystick.setButton(3, 0);
-              Joystick.setButton(4, 1);
-            } else if (emt == 1) { // aim shield
-              Serial.println("Shield clockwise");
-              Joystick.setButton(5, 0);
-              Joystick.setButton(6, 1);
-            }
-            encoderPosition[emt]++;
-            unsigned long now = micros();
-            clickInterval[emt] = now - lastClickTime[emt];
-            lastClickTime[emt] = now;
-            Serial.print("Clockwise, Position = ");
-            Serial.print(encoderPosition[emt]);
-            Serial.print(", time interval (us) = ");
-            Serial.println(clickInterval[emt]);
-          }
-          else if (lastState[emt] == 0b01) {
-            // Counterclockwise
-            steerDirection = -1;
-            if (emt == 0)  { // aim gun
-              Serial.println("gun counterclockwise");
-              Joystick.setButton(3, 1);
-              Joystick.setButton(4, 0);
-            } else if (emt == 1) { // aim shield
-              Serial.println("Shield counterclockwise");
-              Joystick.setButton(5, 1);
-              Joystick.setButton(6, 0);
-            }
-            encoderPosition[emt]--;
-            unsigned long now = micros();
-            clickInterval[emt] = now - lastClickTime[emt];
-            lastClickTime[emt] = now;
-            Serial.print("Counterclockwise, Position = ");
-            Serial.print(encoderPosition[emt]);
-            Serial.print(", time interval (us) = ");
-            Serial.println(clickInterval[emt]);
-          }
-        }
-      }
-
-      lastState[emt] = newState;
-      switch (emt)
-      {
-        case 0:
-          // Joystick.setXAxis(1000000 / clickInterval[0]);
-          // Serial.println(1000000 / clickInterval[0]);
-          break;
-        case 1:
-          // Joystick.setYAxis(1000000 / clickInterval[1]);
-          // Serial.println(1000000 / clickInterval[1]);
-          break;
-        case 2: // steer
-          Joystick.setXAxis(512 + steerDirection * (1000000 / clickInterval[2]));
-          Serial.println(512 + steerDirection * (1000000 / clickInterval[2]));
-          break;
-      }
-    } 
-    */
 }
 
 /**************** HELPER FUNCTIONS ****************/
@@ -304,8 +199,44 @@ void display_inserted_module(enum Side side, enum Module module) {
 // read the encoder and update the stored position of that
 // encoder module
 void read_encoder(enum Side side, enum Module module) {
+  // absolute position calculation
   if (side == LEFT) {
     newLeftEncPosition = leftEnc.read();
+
+    // time interval calculation
+    if (newLeftEncPosition != oldLeftEncPosition) { 
+      unsigned long now = micros();
+      switch (module) {
+        case MOD_STEER: {
+          steerInterval = now - prevSteerTime;
+          steerSpeed = SPEED_CONSTANT / steerInterval;
+          prevSteerTime = now;
+        } break;
+        case MOD_AIM: {
+          aimInterval = now - prevAimTime;
+          aimSpeed = SPEED_CONSTANT / aimInterval;
+          prevAimTime = now;
+        } break;
+        case MOD_SHIELD: {
+          shieldInterval = now - prevShieldTime;
+          shieldSpeed = SPEED_CONSTANT / shieldInterval;
+          prevShieldTime = now;
+        } break;
+      }
+    } else {
+      switch (module) {
+        case MOD_STEER: {
+          steerSpeed = 0;
+        } break;
+        case MOD_AIM: {
+          aimSpeed = 0;
+        } break;
+        case MOD_SHIELD: {
+          shieldSpeed = 0;
+        } break;
+      }
+    }
+
     if (newLeftEncPosition < oldLeftEncPosition) { 
       // CLOCKWISE
       switch (module) {
@@ -336,6 +267,41 @@ void read_encoder(enum Side side, enum Module module) {
     oldLeftEncPosition = newLeftEncPosition;
   } else {
     newRightEncPosition = rightEnc.read();
+    
+    // time interval calculation
+    if (newRightEncPosition != oldRightEncPosition) { 
+      unsigned long now = micros();
+      switch (module) {
+        case MOD_STEER: {
+          steerInterval = now - prevSteerTime;
+          steerSpeed = SPEED_CONSTANT / steerInterval;
+          prevSteerTime = now;
+        } break;
+        case MOD_AIM: {
+          aimInterval = now - prevAimTime;
+          aimSpeed = SPEED_CONSTANT / aimInterval;
+          prevAimTime = now;
+        } break;
+        case MOD_SHIELD: {
+          shieldInterval = now - prevShieldTime;
+          shieldSpeed = SPEED_CONSTANT / shieldInterval;
+          prevShieldTime = now;
+        } break;
+      }
+    } else {
+      switch (module) {
+        case MOD_STEER: {
+          steerSpeed = 0;
+        } break;
+        case MOD_AIM: {
+          aimSpeed = 0;
+        } break;
+        case MOD_SHIELD: {
+          shieldSpeed = 0;
+        } break;
+      }
+    }
+
     if (newRightEncPosition < oldRightEncPosition) { 
       // CLOCKWISE
       switch (module) {
