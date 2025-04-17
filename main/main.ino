@@ -36,9 +36,15 @@ byte lastState[3] = {0, 0, 0};
 // ENCODER
 Encoder leftEnc(2, 3);
 Encoder rightEnc(8, 7);
-long oldSteerPosition = -999;
-long oldAimPosition = -999;
-long oldShieldPosition = -999;
+
+long oldLeftEncPosition = 0;
+long oldRightEncPosition = 0;
+long newLeftEncPosition = 0;
+long newRightEncPosition = 0;
+
+long steerPosition = 0;
+long aimPosition = 0;
+long shieldPosition = 0;
 
 void setup() {
   // Set mode selection pins as inputs
@@ -72,6 +78,7 @@ void loop() {
   //TODO: send automatic sending to false and then manually send state
   //TODO: try messing with resetting if button is held when module removed or potentiometer stuff
   //TODO: send negative number for unplugged potentiometer
+  //TODO: check interrupt pins (0, 1, 2, 3)?
 
   for (Side side = 0; side < 2; side = side + 1) {
     Module modInserted = readModule(side);
@@ -80,17 +87,22 @@ void loop() {
 
     switch(modInserted) {
       case MOD_STEER: {
-        long newSteerPosition = side == 0 ? leftEnc.read() : rightEnc.read();
-        if (newSteerPosition != oldSteerPosition) {
-          oldSteerPosition = newSteerPosition;
-          Serial.println(newSteerPosition);
-        }
+        // If steer module inserted, check which side it's in and then
+        // monitor encoder transitions to increment/decrement steer encoder
+        // position value
+        //TODO: find time between transitions for speed
+        read_encoder(side, modInserted);
+        Serial.print("STEER POSITION: "); Serial.println(steerPosition);
       } break;
       case MOD_AIM: {
         // stuff
+        read_encoder(side, modInserted);
+        Serial.print("AIM POSITION: "); Serial.println(aimPosition);
       } break;
       case MOD_SHIELD: {
         // stuff
+        read_encoder(side, modInserted);
+        Serial.print("SHIELD POSITION: "); Serial.println(shieldPosition);
       } break;
       case MOD_SPEED: {
         int potStatus = analogRead(pin_configs[side].DataPin[2]);
@@ -290,4 +302,64 @@ void display_inserted_module(enum Side side, enum Module module) {
       break;
   }
   if (side == RIGHT) Serial.print("\n");
+}
+
+void read_encoder(enum Side side, enum Module module) {
+  if (side == LEFT) {
+    newLeftEncPosition = leftEnc.read();
+    if (newLeftEncPosition > oldLeftEncPosition) {
+      switch (module) {
+        case MOD_STEER: {
+          steerPosition++;
+        } break;
+        case MOD_AIM: {
+          aimPosition++;
+        } break;
+        case MOD_SHIELD: {
+          shieldPosition++;
+        } break;
+      }
+    } else if (newLeftEncPosition < oldLeftEncPosition) {
+      switch (module) {
+        case MOD_STEER: {
+          steerPosition--;
+        } break;
+        case MOD_AIM: {
+          aimPosition--;
+        } break;
+        case MOD_SHIELD: {
+          shieldPosition--;
+        } break;
+      }
+    }
+    oldLeftEncPosition = newLeftEncPosition;
+  } else {
+    newRightEncPosition = rightEnc.read();
+    if (newRightEncPosition > oldRightEncPosition) {
+      switch (module) {
+        case MOD_STEER: {
+          steerPosition++;
+        } break;
+        case MOD_AIM: {
+          aimPosition++;
+        } break;
+        case MOD_SHIELD: {
+          shieldPosition++;
+        } break;
+      }
+    } else if (newRightEncPosition < oldRightEncPosition) {
+      switch (module) {
+        case MOD_STEER: {
+          steerPosition--;
+        } break;
+        case MOD_AIM: {
+          aimPosition--;
+        } break;
+        case MOD_SHIELD: {
+          shieldPosition--;
+        } break;
+      }
+    }
+    oldRightEncPosition = newRightEncPosition;
+  }
 }
