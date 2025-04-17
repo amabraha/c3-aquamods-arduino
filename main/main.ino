@@ -1,4 +1,5 @@
 #include <Joystick.h>
+#include <Encoder.h>
 #include "main.h"
 
 // Pin definitions
@@ -16,10 +17,10 @@ PinConfig pin_configs[2] = {
 // Joystick setup
 Joystick_ Joystick(JOYSTICK_DEFAULT_REPORT_ID,
                   JOYSTICK_TYPE_JOYSTICK,
-                  6, 0,                        // 6 button, no hats      UP TO 2 BUTTONS AT ONCE
-                  true, true, false,            // X, Y, Z                UP TO 3 ENCODERS AT ONCE
+                  6, 0,                        // 6 button, no hats
+                  true, true, false,           // X, Y, Z               UP TO 2 ENCODERS AT ONCE
                   false, false, false,         // Rx, Ry, Rz
-                  false,                        // Throttle (or rotation) POTENTIOMETER
+                  false,                       // Throttle (or rotation)
                   false, false, false, false); // Rudder, Accelerator, Brake, Steering
 
 // 0, 1, 2: aim gun, aim shield, steer
@@ -29,13 +30,15 @@ unsigned long clickInterval[3] = {0, 0, 0}; // time between clicks (for speed)
 
 int steerDirection;
 
-// global variables to hold state
-// volatile int encoderPosition = 0;         // the count up/down
-// volatile unsigned long lastClickTime = 0; // track time of last full "click"
-// volatile unsigned long clickInterval = 0; // time between clicks (for speed)
-
 // storing last known 2-bit state 
 byte lastState[3] = {0, 0, 0};
+
+// ENCODER
+Encoder leftEnc(2, 3);
+Encoder rightEnc(8, 7);
+long oldSteerPosition = -999;
+long oldAimPosition = -999;
+long oldShieldPosition = -999;
 
 void setup() {
   // Set mode selection pins as inputs
@@ -43,7 +46,7 @@ void setup() {
   {
     for (int idpin = 0; idpin < 3; idpin++)
     {
-        pinMode(pin_configs[side].IDPin[idpin], INPUT_PULLUP);
+      pinMode(pin_configs[side].IDPin[idpin], INPUT_PULLUP);
     }
   }
 
@@ -68,13 +71,48 @@ void setup() {
 void loop() {
   //TODO: send automatic sending to false and then manually send state
   //TODO: try messing with resetting if button is held when module removed or potentiometer stuff
-  //TODO: Encoder library
   //TODO: send negative number for unplugged potentiometer
 
   for (Side side = 0; side < 2; side = side + 1) {
     Module modInserted = readModule(side);
-    Module_Type modType = get_type(modInserted);
+    // Module_Type modType = get_type(modInserted);
+    // display_inserted_module(side, modInserted);
 
+    switch(modInserted) {
+      case MOD_STEER: {
+        long newSteerPosition = side == 0 ? leftEnc.read() : rightEnc.read();
+        if (newSteerPosition != oldSteerPosition) {
+          oldSteerPosition = newSteerPosition;
+          Serial.println(newSteerPosition);
+        }
+      } break;
+      case MOD_AIM: {
+        // stuff
+      } break;
+      case MOD_SHIELD: {
+        // stuff
+      } break;
+      case MOD_SPEED: {
+        int potStatus = analogRead(pin_configs[side].DataPin[2]);
+        int mappedPotStatus = map(potStatus, 0, 1023, 0, 255); 
+        Serial.print("Mapped Speed Potentiometer status: ");
+        Serial.println(mappedPotStatus);
+      } break;
+      case MOD_SHOOT: {
+        int shootButtonStatus = !digitalRead(pin_configs[side].DataPin[0]);
+        Serial.print("shoot status: "); Serial.println(shootButtonStatus);
+      } break;
+      case MOD_CHARGE: {
+        int chargeButtonStatus = !digitalRead(pin_configs[side].DataPin[0]);
+        Serial.print("charge status: "); Serial.println(chargeButtonStatus);
+      } break;
+      case MOD_NONE: {
+        // stuff
+      } break;
+    }
+  }
+
+    /*
     if (modType == TYPE_BUTTON) {
       if (modInserted == MOD_SHOOT) {
         int buttonStatus = !digitalRead(pin_configs[side].DataPin[0]);
@@ -158,12 +196,8 @@ void loop() {
             Serial.println(clickInterval[emt]);
           }
         }
-      } else {
-        // Joystick.setButton(3, 0);
-        // Joystick.setButton(4, 0);
-        // Joystick.setButton(5, 0);
-        // Joystick.setButton(6, 0);
       }
+
       lastState[emt] = newState;
       switch (emt)
       {
@@ -180,12 +214,8 @@ void loop() {
           Serial.println(512 + steerDirection * (1000000 / clickInterval[2]));
           break;
       }
-      
-
-    } else {
-      //Serial.println("No module attached, no data!");
-    }
-  }
+    } 
+    */
 }
 
 /**************** HELPER FUNCTIONS ****************/
@@ -219,24 +249,45 @@ enum Module readModule(enum Side side)
   switch (moduleSelect)
   {
     case 0b001:
-      // Serial.println("*** STEER ENCODER ***");
-      return MOD_STEER; // Steering (Encoder)
+      return MOD_STEER;  // Steering (Encoder)
     case 0b010:
-      // Serial.println("*** AIM GUN ENCODER ***");
-      return MOD_AIM; // Aim (Gun) (Encoder)
+      return MOD_AIM;    // Aim (Gun) (Encoder)
     case 0b011:
-      // Serial.println("*** AIM SHIELD ENCODER ***");
       return MOD_SHIELD; // Aim (Shield) (Encoder)
     case 0b100:
-      // Serial.println("*** SPEED POTENTIOMETER ***");
-      return MOD_SPEED; // Adjust Speed (Potentiometer)
+      return MOD_SPEED;  // Adjust Speed (Potentiometer)
     case 0b101:
-      // Serial.println("*** FIRE GUN BUTTON ***");
-      return MOD_SHOOT; // Fire Gun (Button)
+      return MOD_SHOOT;  // Fire Gun (Button)
     case 0b110:
-      // Serial.println("*** CHARGE BATTERY BUTTON ***");
       return MOD_CHARGE; // Charge Battery (Button)
     default:
-      return MOD_NONE; // Default to no module
+      return MOD_NONE;   // Default to no module
   }
+}
+
+void display_inserted_module(enum Side side, enum Module module) {
+  switch(module) {
+    case MOD_STEER:
+      Serial.print("Side "); Serial.print(side); Serial.print(" STEER          ");
+      break;
+    case MOD_AIM:
+      Serial.print("Side "); Serial.print(side); Serial.print(" AIM GUN        ");
+      break;
+    case MOD_SHIELD:
+      Serial.print("Side "); Serial.print(side); Serial.print(" AIM SHIELD     ");
+      break;
+    case MOD_SPEED:
+      Serial.print("Side "); Serial.print(side); Serial.print(" SPEED          ");
+      break;
+    case MOD_SHOOT:
+      Serial.print("Side "); Serial.print(side); Serial.print(" FIRE GUN       ");
+      break;
+    case MOD_CHARGE:
+      Serial.print("Side "); Serial.print(side); Serial.print(" BATTERY        ");
+      break;
+    case MOD_NONE:
+      Serial.print("Side "); Serial.print(side); Serial.print(" NONE           ");
+      break;
+  }
+  if (side == RIGHT) Serial.print("\n");
 }
