@@ -54,6 +54,10 @@ long steerSpeed = 0;
 long aimSpeed = 0;
 long shieldSpeed = 0;
 
+// smoothing factor for steering LPF
+float alpha = 0.02;
+float avgSteerSpeed;
+
 void setup() {
   // Set mode selection pins as inputs
   for (Side side = 0; side < 2; side = side + 1)
@@ -101,8 +105,13 @@ void loop() {
         
         // Range we should send is 0 - 1023
         // 0 is full left, 1023 is full right
+
         // Serial.println(512 + steerSpeed * steerDirection);
-        Joystick.setXAxis(512 + steerSpeed * steerDirection);
+        int newSteerSpeedData = 512 + steerSpeed * steerDirection;
+        avgSteerSpeed = alpha * newSteerSpeedData + (1 - alpha) * avgSteerSpeed;
+        // Serial.println(avgSteerSpeed);
+
+        Joystick.setXAxis(avgSteerSpeed);
         Joystick.sendState();
       } break;
       case MOD_AIM: {
@@ -116,7 +125,7 @@ void loop() {
         read_encoder(side, modInserted);
         // Serial.print("SHIELD POSITION: "); Serial.println(shieldPosition);
         // if (shieldSpeed > 0) {Serial.print("SHIELD SPEED: "); Serial.println(shieldSpeed);}
-        Joystick.setRyAxis(512 + shieldSpeed * shieldDirection);
+        Joystick.setRyAxis(512 - shieldSpeed * shieldDirection);
         Joystick.sendState();
       } break;
       case MOD_SPEED: {
