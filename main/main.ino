@@ -19,42 +19,55 @@ PinConfig pin_configs[2] = {
 // Joystick setup
 Joystick_ Joystick(JOYSTICK_DEFAULT_REPORT_ID,
                   JOYSTICK_TYPE_GAMEPAD,
-                  6, 0,                        // 6 button, no hats
-                  true, true, false,           // X, Y, Z               FOR THE STEER + SPEED
-                  true, true, false,           // Rx, Ry, Rz            FOR THE 2 AIMING
+                  2, 0,                        // 2 buttons, no hats
+                  true, true, false,           // X, Y, Z
+                  true, true, false,           // Rx, Ry, Rz
                   false,                       // Throttle (or rotation)
                   false, false, false, false); // Rudder, Accelerator, Brake, Steering
 
-// ENCODER
+// Initialize encoders. One encoder per module slot.
 Encoder leftEnc(pin_configs[LEFT].DataPin[0], pin_configs[LEFT].DataPin[1]);
 Encoder rightEnc(pin_configs[RIGHT].DataPin[0], pin_configs[RIGHT].DataPin[1]);
 
+// Absolute position of left/right encoders.
+// The absolute positions of imaginary left and right encoders
+// are stored and used to update the three real encoders
+// based on which modules are inserted
 long oldLeftEncPosition = 0;
 long oldRightEncPosition = 0;
 long newLeftEncPosition = 0;
 long newRightEncPosition = 0;
 
+// Absolute position of the encoderss
 long steerPosition = 0;
 long aimPosition = 0;
 long shieldPosition = 0;
 
+// Direction of the encoders
+// -1: counter-clockwise
+//  0: stationary
+//  1: clockwise
 long steerDirection = 0;
 long aimDirection = 0;
 long shieldDirection = 0;
 
+// Absolute time of previous encoder transition (microseconds)
 long prevSteerTime = 0;
 long prevAimTime = 0;
 long prevShieldTime = 0;
 
+// Interval between two most recent encoder transitions (microseconds)
 long steerInterval = 0;
 long aimInterval = 0;
 long shieldInterval = 0;
 
+// Speed of encoder rotation (SPEED_CONSTANT / xxInterval)
 long steerSpeed = 0;
 long aimSpeed = 0;
 long shieldSpeed = 0;
 
-// smoothing factor for steering LPF
+// smoothing factor for steering LPF [0, 1]
+// lower value -> more smoothing
 float alpha = 0.02;
 float avgSteerSpeed;
 
@@ -78,14 +91,18 @@ void setup() {
   pinMode(pin_configs[1].DataPin[0], INPUT_PULLUP);
   pinMode(pin_configs[1].DataPin[1], INPUT_PULLUP);
   
-  // Send initial values
+  // Begin joystick. Do not send updates automatically.
   Joystick.begin(false);
-  Joystick.setXAxis(512);
-  Joystick.setRxAxis(512);
-  Joystick.setRyAxis(512);
-  Joystick.setYAxis(511);
-  Joystick.setButton(0, 0);
-  Joystick.setButton(1, 0);
+
+  // Set initial values.
+  // For encoders, range to send is 0 - 1023
+  // 0 is full left, 1023 is full right
+  Joystick.setXAxis(512);   // steer speed
+  Joystick.setRxAxis(512);  // gun aim speed
+  Joystick.setRyAxis(512);  // shield aim speed
+  Joystick.setYAxis(512);   // speed potentiometer value
+  Joystick.setButton(0, 0); // shoot button status
+  Joystick.setButton(1, 0); // charge battery button status
 }
 
 void loop() {
@@ -94,62 +111,43 @@ void loop() {
 
   for (Side side = 0; side < 2; side = side + 1) {
     Module modInserted = readModule(side);
-    // Module_Type modType = get_type(modInserted);
-    // display_inserted_module(side, modInserted);
 
     switch(modInserted) {
       case MOD_STEER: {
         read_encoder(side, modInserted);
-        // Serial.print("STEER POSITION: "); Serial.println(steerPosition);
-        // if (steerSpeed > 0) {Serial.print("STEER SPEED: "); Serial.println(steerSpeed);}
-        
-        // Range we should send is 0 - 1023
-        // 0 is full left, 1023 is full right
-
-        // Serial.println(512 + steerSpeed * steerDirection);
         int newSteerSpeedData = 512 + steerSpeed * steerDirection;
         avgSteerSpeed = alpha * newSteerSpeedData + (1 - alpha) * avgSteerSpeed;
-        // Serial.println(avgSteerSpeed);
-
         Joystick.setXAxis(avgSteerSpeed);
         Joystick.sendState();
       } break;
       case MOD_AIM: {
         read_encoder(side, modInserted);
-        // Serial.print("AIM POSITION: "); Serial.println(aimPosition);
-        // if (aimSpeed > 0) {Serial.print("AIM SPEED: "); Serial.println(aimSpeed);}
         Joystick.setRxAxis(512 + aimSpeed * aimDirection);
         Joystick.sendState();
       } break;
       case MOD_SHIELD: {
         read_encoder(side, modInserted);
-        // Serial.print("SHIELD POSITION: "); Serial.println(shieldPosition);
-        // if (shieldSpeed > 0) {Serial.print("SHIELD SPEED: "); Serial.println(shieldSpeed);}
         Joystick.setRyAxis(512 - shieldSpeed * shieldDirection);
         Joystick.sendState();
       } break;
       case MOD_SPEED: {
         int potStatus = analogRead(pin_configs[side].DataPin[2]);
         int mappedPotStatus = map(potStatus, 0, 1023, 511, 0); 
-        // Serial.print("Mapped Speed Potentiometer status: ");
-        // Serial.println(mappedPotStatus);
         Joystick.setYAxis(mappedPotStatus);
         Joystick.sendState();
       } break;
       case MOD_SHOOT: {
         int shootButtonStatus = !digitalRead(pin_configs[side].DataPin[0]);
-        // Serial.print("shoot status: "); Serial.println(shootButtonStatus);
         Joystick.setButton(0, shootButtonStatus);
         Joystick.sendState();
       } break;
       case MOD_CHARGE: {
         int chargeButtonStatus = !digitalRead(pin_configs[side].DataPin[0]);
-        // Serial.print("charge status: "); Serial.println(chargeButtonStatus);
         Joystick.setButton(1, chargeButtonStatus);
         Joystick.sendState();
       } break;
       case MOD_NONE: {
-        // stuff
+        // stuff, potentially.
       } break;
     }
   }
@@ -202,6 +200,7 @@ enum Module readModule(enum Side side)
   }
 }
 
+// Given a side and a module, display the connected module
 void display_inserted_module(enum Side side, enum Module module) {
   switch(module) {
     case MOD_STEER:
@@ -230,8 +229,8 @@ void display_inserted_module(enum Side side, enum Module module) {
 }
 
 // Given a side and a module (one of the 3 encoder modules),
-// read the encoder and update the stored position of that
-// encoder module
+// read the encoder and update the stored position, speed,
+// and direction of that encoder module
 void read_encoder(enum Side side, enum Module module) {
   // absolute position calculation
   if (side == LEFT) {
