@@ -71,6 +71,9 @@ long shieldSpeed = 0;
 float alpha = 0.02;
 float avgSteerSpeed;
 
+// Keep track of which module is in which side
+enum Module insertedModules[2];
+
 void setup() {
   // Set mode selection pins as inputs
   for (Side side = 0; side < 2; side = side + 1)
@@ -111,6 +114,7 @@ void loop() {
 
   for (Side side = 0; side < 2; side = side + 1) {
     Module modInserted = readModule(side);
+    insertedModules[side] = modInserted;
 
     switch(modInserted) {
       case MOD_STEER: {
@@ -147,9 +151,32 @@ void loop() {
         Joystick.sendState();
       } break;
       case MOD_NONE: {
-        // stuff, potentially.
+        // stuff
       } break;
     }
+  }
+
+  // Send negative number when potentiometer not inserted
+  if (insertedModules[LEFT] != MOD_SPEED &&
+      insertedModules[RIGHT] != MOD_SPEED) {
+    // 1023 translates to -1 in Unity.
+    // Unity behaves differently when a negative number is given.
+    Joystick.setYAxis(1023);
+    Joystick.sendState();
+  }
+
+  // If shoot button is not inserted, send 0
+  if (insertedModules[LEFT] != MOD_SHOOT &&
+      insertedModules[RIGHT] != MOD_SHOOT) {
+    Joystick.setButton(0, 0);
+    Joystick.sendState();
+  }
+
+  // If charge battery button is not inserted, send 0
+  if (insertedModules[LEFT] != MOD_CHARGE &&
+      insertedModules[RIGHT] != MOD_CHARGE) {
+    Joystick.setButton(1, 0);
+    Joystick.sendState();
   }
 }
 
