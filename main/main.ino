@@ -109,9 +109,6 @@ void setup() {
 }
 
 void loop() {
-  //TODO: try messing with resetting if button is held when module removed or potentiometer stuff
-  //TODO: send negative number for unplugged potentiometer
-
   for (Side side = 0; side < 2; side = side + 1) {
     Module modInserted = readModule(side);
     insertedModules[side] = modInserted;
@@ -160,7 +157,7 @@ void loop() {
   if (insertedModules[LEFT] != MOD_SPEED &&
       insertedModules[RIGHT] != MOD_SPEED) {
     // 1023 translates to -1 in Unity.
-    // Unity behaves differently when a negative number is given.
+    // Unity logic behaves differently when a negative number is given.
     Joystick.setYAxis(1023);
     Joystick.sendState();
   }
@@ -177,6 +174,29 @@ void loop() {
       insertedModules[RIGHT] != MOD_CHARGE) {
     Joystick.setButton(1, 0);
     Joystick.sendState();
+  }
+
+  // If Steer encoder not inserted, set its speed to 0 
+  // (512, since the range is 0-1023)
+  if (insertedModules[LEFT] != MOD_STEER &&
+      insertedModules[RIGHT] != MOD_STEER) {
+    Joystick.setXAxis(512);
+    avgSteerSpeed = 512; // Steer encoder uses input smoothing 
+                         // so this needs to be zeroed as well
+  }
+
+  // If Aim Gun encoder not inserted, set its speed to 0 
+  // (512, since the range is 0-1023)
+  if (insertedModules[LEFT] != MOD_AIM &&
+      insertedModules[RIGHT] != MOD_AIM) {
+    Joystick.setRxAxis(512);
+  }
+
+  // If Aim Shield encoder not inserted, set its speed to 0 
+  // (512, since the range is 0-1023)
+  if (insertedModules[LEFT] != MOD_SHIELD &&
+      insertedModules[RIGHT] != MOD_SHIELD) {
+    Joystick.setRyAxis(512);
   }
 }
 
