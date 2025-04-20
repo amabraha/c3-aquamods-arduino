@@ -108,7 +108,19 @@ void setup() {
   Joystick.setButton(1, 0); // charge battery button status
 }
 
+/*dummy variables for testing our reqs*/
+// this is for latency
+unsigned long start_time
+
+// this is for switching time
+unsigned int num_modules
+unsigned long time_since_switch
+
+
 void loop() {
+  start_time = micros();
+  num_modules = 0;
+
   for (Side side = 0; side < 2; side = side + 1) {
     Module modInserted = readModule(side);
     insertedModules[side] = modInserted;
@@ -198,6 +210,27 @@ void loop() {
       insertedModules[RIGHT] != MOD_SHIELD) {
     Joystick.setRyAxis(512);
   }
+
+
+  //computing the switching time
+  if (num_modules < 2) {
+    num_modules = ((insertedModules[LEFT] == MOD_NONE) ? 1 : 0) + ((insertedModules[RIGHT] == MOD_NONE) ? 1 : 0);
+    if (num_modules == 2) {
+      Serial.print("switching time: ");
+      Serial.print(micros() - time_since_switch);
+      Serial.print("\n");
+    }
+  } else {
+    num_modules = ((insertedModules[LEFT] == MOD_NONE) ? 1 : 0) + ((insertedModules[RIGHT] == MOD_NONE) ? 1 : 0);
+    if (num_modules < 2) {
+      time_since_switch = micros();
+    }
+  }
+
+  //computing the latency
+  Serial.print("input latency: ");
+  Serial.print(micros()-start_time);
+  Serial.print("\n");
 }
 
 /**************** HELPER FUNCTIONS ****************/
