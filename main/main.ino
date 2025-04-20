@@ -110,11 +110,11 @@ void setup() {
 
 /*dummy variables for testing our reqs*/
 // this is for latency
-unsigned long start_time
+unsigned long start_time;
 
 // this is for switching time
-unsigned int num_modules
-unsigned long time_since_switch
+unsigned int num_modules;
+unsigned long time_since_switch;
 
 
 void loop() {
